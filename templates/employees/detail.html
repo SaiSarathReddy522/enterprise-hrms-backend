@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% if employee %}
+
+<h2>Employee Details</h2>
+
+<p><strong>ID:</strong> {{ employee.id }}</p>
+<p><strong>Name:</strong> {{ employee.name }}</p>
+<p><strong>Department:</strong> {{ employee.department }}</p>
+<p><strong>Salary:</strong> ₹{{ employee.salary }}</p>
+
+<a href="{% url 'employee-list' %}">
+    Back to Employee List
+</a>
+
+{% else %}
+
+<h2>Employee Not Found</h2>
+
+<a href="{% url 'employee-list' %}">
+    Back to Employee List
+</a>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2>{{ title|default:"Employee List" }}</h2>
+
+<ul>
+    {% for employee in employees %}
+        <li>
+            <a href="{% url 'employee-detail' employee.id %}">
+                {{ employee.name }}
+            </a>
+            - {{ employee.department }}
+            - ₹{{ employee.salary }}
+        </li>
+    {% endfor %}
+</ul>
+
+{% endblock %}

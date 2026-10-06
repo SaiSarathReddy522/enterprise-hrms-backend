@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enterprise HRMS</title>
+</head>
+<body>
+
+    <h1>Enterprise HRMS</h1>
+
+    <nav>
+        <a href="{% url 'employee-home' %}">Employees</a> |
+        <a href="{% url 'department-list' %}">Departments</a>
+    </nav>
+
+    <hr>
+
+    {% block content %}
+    {% endblock %}
+
+</body>
+</html>
