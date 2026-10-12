@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -26,6 +27,13 @@ class EmployeeAPITests(APITestCase):
 
         self.list_url = "/api/employees/"
 
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username="testuser",
+            password="TestPass123!",
+        )
+        self.client.force_authenticate(user=self.user)
+
     def test_list_employees_returns_200(self):
         response = self.client.get(self.list_url)
 
@@ -40,7 +48,9 @@ class EmployeeAPITests(APITestCase):
         self.assertEqual(response.data["employee_code"], "TEST001")
 
     def test_unknown_employee_returns_404(self):
-        response = self.client.get(f"{self.list_url}999999/")
+        response = self.client.get(
+            f"{self.list_url}999999/"
+        )
 
         self.assertEqual(
             response.status_code,
@@ -131,4 +141,76 @@ class EmployeeAPITests(APITestCase):
         )
         self.assertTrue(
             Employee.objects.filter(pk=self.employee.pk).exists()
+        )
+
+    def test_duplicate_employee_email_returns_400(self):
+        payload = {
+            "employee_code": "TEST004",
+            "first_name": "Duplicate",
+            "last_name": "Email",
+            "email": "test.employee@example.com",
+            "phone": "9876543213",
+            "date_of_joining": "2026-02-01",
+            "department": self.department.pk,
+        }
+
+        response = self.client.post(
+            self.list_url, payload, format="json"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_create_employee_without_first_name_returns_400(self):
+        payload = {
+            "employee_code": "TEST005",
+            "last_name": "MissingFirstName",
+            "email": "missing.firstname@example.com",
+            "phone": "9876543214",
+            "date_of_joining": "2026-02-01",
+            "department": self.department.pk,
+        }
+
+        response = self.client.post(
+            self.list_url, payload, format="json"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertIn("first_name", response.data)
+
+    def test_patch_employee_last_name_returns_200(self):
+        url = f"{self.list_url}{self.employee.pk}/"
+
+        payload = {
+            "last_name": "Updated",
+        }
+
+        response = self.client.patch(
+            url, payload, format="json"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+        )
+
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.last_name, "Updated")
+        self.assertEqual(self.employee.first_name, "Test")
+    def test_unauthenticated_user_cannot_list_employees(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.list_url)
+
+        self.assertIn(
+            response.status_code,
+            [
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            ],
         )
