@@ -202,10 +202,56 @@ class EmployeeAPITests(APITestCase):
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.last_name, "Updated")
         self.assertEqual(self.employee.first_name, "Test")
+
     def test_unauthenticated_user_cannot_list_employees(self):
         self.client.force_authenticate(user=None)
 
         response = self.client.get(self.list_url)
+
+        self.assertIn(
+            response.status_code,
+            [
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            ],
+        )
+
+    def test_unauthenticated_user_cannot_create_employee(self):
+        self.client.force_authenticate(user=None)
+
+        payload = {
+            "employee_code": "TEST006",
+            "first_name": "Unauthorized",
+            "last_name": "User",
+            "email": "unauthorized@example.com",
+            "phone": "9876543215",
+            "date_of_joining": "2026-03-01",
+            "department": self.department.pk,
+        }
+
+        response = self.client.post(
+            self.list_url, payload, format="json"
+        )
+
+        self.assertIn(
+            response.status_code,
+            [
+                status.HTTP_401_UNAUTHORIZED,
+                status.HTTP_403_FORBIDDEN,
+            ],
+        )
+        self.assertFalse(
+            Employee.objects.filter(
+                employee_code="TEST006"
+            ).exists()
+        )
+
+    def test_unauthenticated_user_cannot_retrieve_employee(self):
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(
+            f"{self.list_url}{self.employee.pk}/"
+        )
 
         self.assertIn(
             response.status_code,
