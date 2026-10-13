@@ -260,3 +260,66 @@ class EmployeeAPITests(APITestCase):
                 status.HTTP_403_FORBIDDEN,
             ],
         )
+    
+    def test_search_employees_by_name(self):
+        response = self.client.get(
+            self.list_url,
+            {"search": "Test"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item["employee_code"] for item in response.data],
+            ["TEST001"],
+        )
+
+    def test_active_only_filter(self):
+        self.employee.status = "Inactive"
+        self.employee.save(update_fields=["status"])
+
+        response = self.client.get(
+            self.list_url,
+            {"active_only": "true"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_put_employee_returns_200(self):
+        payload = {
+            "employee_code": "TEST001",
+            "first_name": "Updated",
+            "last_name": "Employee",
+            "email": "test.employee@example.com",
+            "phone": "9876543210",
+            "date_of_joining": "2026-01-01",
+            "status": "Active",
+            "department": self.department.pk,
+        }
+
+        response = self.client.put(
+            f"{self.list_url}{self.employee.pk}/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.first_name, "Updated")
+
+    def test_deactivated_employee_can_be_deleted(self):
+        self.client.post(
+            f"{self.list_url}{self.employee.pk}/deactivate/"
+        )
+
+        response = self.client.delete(
+            f"{self.list_url}{self.employee.pk}/"
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+        )
+        self.assertFalse(
+            Employee.objects.filter(pk=self.employee.pk).exists()
+        )
