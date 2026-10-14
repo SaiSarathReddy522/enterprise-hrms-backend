@@ -269,7 +269,7 @@ class EmployeeAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            [item["employee_code"] for item in response.data],
+            [item["employee_code"] for item in response.data["results"]],
             ["TEST001"],
         )
 
@@ -283,7 +283,8 @@ class EmployeeAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
 
     def test_put_employee_returns_200(self):
         payload = {

@@ -1,4 +1,4 @@
-
+﻿
 from django.shortcuts import render, get_object_or_404
 
 from rest_framework.views import APIView
@@ -7,6 +7,7 @@ from rest_framework import status
 
 from .models import Employee
 from .serializers import EmployeeSerializer
+from .pagination import EmployeePagination
 from . import services
 
 
@@ -48,7 +49,10 @@ class EmployeeListCreateAPIView(APIView):
             query=query,
             active_only=active_only,
         )
-        serializer = EmployeeSerializer(employees, many=True)
+        paginator = EmployeePagination()
+        page = paginator.paginate_queryset(employees, request, view=self)
+        serializer = EmployeeSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
