@@ -1,6 +1,8 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -48,9 +50,7 @@ class EmployeeAPITests(APITestCase):
         self.assertEqual(response.data["employee_code"], "TEST001")
 
     def test_unknown_employee_returns_404(self):
-        response = self.client.get(
-            f"{self.list_url}999999/"
-        )
+        response = self.client.get(f"{self.list_url}999999/")
 
         self.assertEqual(
             response.status_code,
@@ -184,14 +184,10 @@ class EmployeeAPITests(APITestCase):
         self.assertIn("first_name", response.data)
 
     def test_patch_employee_last_name_returns_200(self):
-        url = f"{self.list_url}{self.employee.pk}/"
-
-        payload = {
-            "last_name": "Updated",
-        }
-
         response = self.client.patch(
-            url, payload, format="json"
+            f"{self.list_url}{self.employee.pk}/",
+            {"last_name": "Updated"},
+            format="json",
         )
 
         self.assertEqual(
@@ -260,7 +256,7 @@ class EmployeeAPITests(APITestCase):
                 status.HTTP_403_FORBIDDEN,
             ],
         )
-    
+
     def test_search_employees_by_name(self):
         response = self.client.get(
             self.list_url,
@@ -324,13 +320,16 @@ class EmployeeAPITests(APITestCase):
         self.assertFalse(
             Employee.objects.filter(pk=self.employee.pk).exists()
         )
+
     def test_unauthenticated_user_cannot_update_employee(self):
         self.client.force_authenticate(user=None)
+
         response = self.client.patch(
             f"{self.list_url}{self.employee.pk}/",
             {"last_name": "Unauthorized"},
             format="json",
         )
+
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
@@ -340,9 +339,11 @@ class EmployeeAPITests(APITestCase):
 
     def test_unauthenticated_user_cannot_delete_employee(self):
         self.client.force_authenticate(user=None)
+
         response = self.client.delete(
             f"{self.list_url}{self.employee.pk}/"
         )
+
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
@@ -353,12 +354,56 @@ class EmployeeAPITests(APITestCase):
 
     def test_unauthenticated_user_cannot_deactivate_employee(self):
         self.client.force_authenticate(user=None)
+
         response = self.client.post(
             f"{self.list_url}{self.employee.pk}/deactivate/"
         )
+
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.status, "Active")
+
+    # ORM and model tests
+
+    def test_department_name_must_be_unique(self):
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Department.objects.create(
+                    name=self.department.name,
+                    description="Duplicate department",
+                )
+
+    def test_department_cannot_be_deleted_with_employees(self):
+        with self.assertRaises(ProtectedError):
+            self.department.delete()
+
+        self.assertTrue(
+            Department.objects.filter(pk=self.department.pk).exists()
+        )
+
+    def test_department_employees_reverse_relationship(self):
+        employees = self.department.employees.all()
+
+        self.assertEqual(employees.count(), 1)
+        self.assertEqual(employees.first(), self.employee)
+
+    def test_employee_orm_filter_and_count(self):
+        Employee.objects.create(
+            employee_code="TEST002",
+            first_name="Another",
+            last_name="Employee",
+            email="another.employee@example.com",
+            phone="9876543211",
+            date_of_joining=date(2026, 2, 1),
+            department=self.department,
+        )
+
+        self.assertEqual(
+            Employee.objects.filter(
+                department=self.department
+            ).count(),
+            2,
+        )
