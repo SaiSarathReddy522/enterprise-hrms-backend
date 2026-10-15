@@ -324,3 +324,41 @@ class EmployeeAPITests(APITestCase):
         self.assertFalse(
             Employee.objects.filter(pk=self.employee.pk).exists()
         )
+    def test_unauthenticated_user_cannot_update_employee(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(
+            f"{self.list_url}{self.employee.pk}/",
+            {"last_name": "Unauthorized"},
+            format="json",
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.last_name, "Employee")
+
+    def test_unauthenticated_user_cannot_delete_employee(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(
+            f"{self.list_url}{self.employee.pk}/"
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+        self.assertTrue(
+            Employee.objects.filter(pk=self.employee.pk).exists()
+        )
+
+    def test_unauthenticated_user_cannot_deactivate_employee(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(
+            f"{self.list_url}{self.employee.pk}/deactivate/"
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
+        self.employee.refresh_from_db()
+        self.assertEqual(self.employee.status, "Active")
