@@ -1,4 +1,4 @@
-# HRMS API Design
+﻿# HRMS API Design
 
 ## 1. REST API Fundamentals
 
@@ -10,7 +10,7 @@ An API allows two software systems to communicate with each other.
 
 Example:
 
-Web Application → API → Django Backend → Database
+Web Application â†’ API â†’ Django Backend â†’ Database
 
 ---
 
@@ -38,9 +38,9 @@ HTTP is used for communication between client and server.
 
 Example:
 
-Client → HTTP Request → Server
+Client â†’ HTTP Request â†’ Server
 
-Server → HTTP Response → Client
+Server â†’ HTTP Response â†’ Client
 
 ---
 
@@ -149,7 +149,6 @@ Active employees cannot be deleted. Deactivate the employee first.
 python manage.py test
 ```
 
-@'
 # HRMS Employee REST API Design
 
 ## 1. Purpose
@@ -445,5 +444,4 @@ The HTML employee pages are separate routes under `/employees/`.
 Department information is exposed through the employee serializer. Separate department REST endpoints are not registered in the current project-level API URL configuration.
 
 Review permissions, authentication behavior, and API responses against the running application whenever the implementation changes.
-'@ | Set-Content -Path docs/api-design.md -Encoding utf8
 
