@@ -1,59 +1,46 @@
+
 # HRMS ER Diagram
 
-## Basic HRMS Relationships
+## Implemented Model Relationships
+
+One department can have multiple employees. Each employee belongs to
+one department.
 
 ```mermaid
 erDiagram
-
     DEPARTMENT ||--o{ EMPLOYEE : contains
-    EMPLOYEE ||--o{ ATTENDANCE : has
-    EMPLOYEE ||--o{ LEAVE : requests
-    EMPLOYEE ||--o{ PAYROLL : receives
 
     DEPARTMENT {
         int id PK
-        varchar name
+        varchar name UK
         text description
+        varchar status
     }
 
     EMPLOYEE {
         int id PK
         varchar employee_code UK
-        varchar name
-        varchar email
+        varchar first_name
+        varchar last_name
+        varchar email UK
         varchar phone
+        date date_of_joining
+        varchar status
         int department_id FK
-        date joining_date
-        varchar status
     }
+```
 
-    ATTENDANCE {
-        int id PK
-        int employee_id FK
-        date attendance_date
-        time check_in
-        time check_out
-        varchar status
-    }
+## Relationship and Constraints
 
-    LEAVE {
-        int id PK
-        int employee_id FK
-        varchar leave_type
-        date start_date
-        date end_date
-        text reason
-        varchar status
-    }
+- Department has a one-to-many relationship with Employee.
+- Employee.department references Department.
+- Department.name must be unique.
+- Employee.employee_code and Employee.email must be unique.
+- Employee.department uses `on_delete=models.PROTECT`.
+- Department.status and Employee.status default to `Active`.
 
-    PAYROLL {
-        int id PK
-        int employee_id FK
-        decimal basic_salary
-        decimal hra
-        decimal allowance
-        decimal deductions
-        decimal gross_salary
-        decimal net_salary
-        date payment_date
-    }
+## Scope and Limitations
+
+This diagram documents the implemented Department and Employee models.
+Attendance, Leave, and Payroll are not included because their model
+implementations have not been verified.
