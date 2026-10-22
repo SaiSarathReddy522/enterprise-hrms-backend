@@ -1,6 +1,8 @@
+
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from rest_framework import status
@@ -34,15 +36,17 @@ class EmployeeAPITests(APITestCase):
             username="testuser",
             password="TestPass123!",
         )
+
+        admin_group, _ = Group.objects.get_or_create(name="Admin")
+        self.user.groups.add(admin_group)
+
         self.client.force_authenticate(user=self.user)
 
     def test_list_employees_returns_200(self):
         response = self.client.get(self.list_url)
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_employee_list_query_count_stays_bounded(self):
-        # Add employees sharing the same department.
         for index in range(2, 7):
             Employee.objects.create(
                 employee_code=f"QUERY{index:03d}",
@@ -54,8 +58,6 @@ class EmployeeAPITests(APITestCase):
                 department=self.department,
             )
 
-        # Pagination performs a count query and a result query.
-        # select_related("department") avoids a separate query per employee.
         with self.assertNumQueries(2):
             response = self.client.get(self.list_url)
 
@@ -64,7 +66,6 @@ class EmployeeAPITests(APITestCase):
         self.assertEqual(len(response.data["results"]), 6)
 
     def test_employee_list_enforces_maximum_page_size(self):
-        # Add 101 employees to the employee already created in setUp().
         for index in range(2, 103):
             Employee.objects.create(
                 employee_code=f"PAGE{index:03d}",
@@ -91,27 +92,16 @@ class EmployeeAPITests(APITestCase):
             self.list_url,
             {"page": 9999},
         )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_retrieve_existing_employee_returns_200(self):
-        response = self.client.get(
-            f"{self.list_url}{self.employee.pk}/"
-        )
-
+        response = self.client.get(f"{self.list_url}{self.employee.pk}/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["employee_code"], "TEST001")
 
     def test_unknown_employee_returns_404(self):
         response = self.client.get(f"{self.list_url}999999/")
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_404_NOT_FOUND,
-        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_employee_with_invalid_email_returns_400(self):
         payload = {
@@ -123,15 +113,8 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-02-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_employee_with_valid_data_returns_201(self):
         payload = {
@@ -143,15 +126,8 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-02-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_201_CREATED,
-        )
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             Employee.objects.filter(employee_code="TEST003").exists()
         )
@@ -160,9 +136,7 @@ class EmployeeAPITests(APITestCase):
         response = self.client.post(
             f"{self.list_url}{self.employee.pk}/deactivate/"
         )
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.status, "Inactive")
 
@@ -176,25 +150,14 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-02-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_active_employee_cannot_be_deleted(self):
         response = self.client.delete(
             f"{self.list_url}{self.employee.pk}/"
         )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(
             Employee.objects.filter(pk=self.employee.pk).exists()
         )
@@ -209,15 +172,8 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-02-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_employee_without_first_name_returns_400(self):
         payload = {
@@ -228,15 +184,8 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-02-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("first_name", response.data)
 
     def test_patch_employee_last_name_returns_200(self):
@@ -245,32 +194,21 @@ class EmployeeAPITests(APITestCase):
             {"last_name": "Updated"},
             format="json",
         )
-
-        self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-        )
-
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.last_name, "Updated")
         self.assertEqual(self.employee.first_name, "Test")
 
     def test_unauthenticated_user_cannot_list_employees(self):
         self.client.force_authenticate(user=None)
-
         response = self.client.get(self.list_url)
-
         self.assertIn(
             response.status_code,
-            [
-                status.HTTP_401_UNAUTHORIZED,
-                status.HTTP_403_FORBIDDEN,
-            ],
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
 
     def test_unauthenticated_user_cannot_create_employee(self):
         self.client.force_authenticate(user=None)
-
         payload = {
             "employee_code": "TEST006",
             "first_name": "Unauthorized",
@@ -280,45 +218,25 @@ class EmployeeAPITests(APITestCase):
             "date_of_joining": "2026-03-01",
             "department": self.department.pk,
         }
-
-        response = self.client.post(
-            self.list_url, payload, format="json"
-        )
-
+        response = self.client.post(self.list_url, payload, format="json")
         self.assertIn(
             response.status_code,
-            [
-                status.HTTP_401_UNAUTHORIZED,
-                status.HTTP_403_FORBIDDEN,
-            ],
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
         self.assertFalse(
-            Employee.objects.filter(
-                employee_code="TEST006"
-            ).exists()
+            Employee.objects.filter(employee_code="TEST006").exists()
         )
 
     def test_unauthenticated_user_cannot_retrieve_employee(self):
         self.client.force_authenticate(user=None)
-
-        response = self.client.get(
-            f"{self.list_url}{self.employee.pk}/"
-        )
-
+        response = self.client.get(f"{self.list_url}{self.employee.pk}/")
         self.assertIn(
             response.status_code,
-            [
-                status.HTTP_401_UNAUTHORIZED,
-                status.HTTP_403_FORBIDDEN,
-            ],
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
         )
 
     def test_search_employees_by_name(self):
-        response = self.client.get(
-            self.list_url,
-            {"search": "Test"},
-        )
-
+        response = self.client.get(self.list_url, {"search": "Test"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             [item["employee_code"] for item in response.data["results"]],
@@ -328,12 +246,10 @@ class EmployeeAPITests(APITestCase):
     def test_active_only_filter(self):
         self.employee.status = "Inactive"
         self.employee.save(update_fields=["status"])
-
         response = self.client.get(
             self.list_url,
             {"active_only": "true"},
         )
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 0)
         self.assertEqual(response.data["results"], [])
@@ -349,13 +265,11 @@ class EmployeeAPITests(APITestCase):
             "status": "Active",
             "department": self.department.pk,
         }
-
         response = self.client.put(
             f"{self.list_url}{self.employee.pk}/",
             payload,
             format="json",
         )
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.first_name, "Updated")
@@ -364,11 +278,9 @@ class EmployeeAPITests(APITestCase):
         self.client.post(
             f"{self.list_url}{self.employee.pk}/deactivate/"
         )
-
         response = self.client.delete(
             f"{self.list_url}{self.employee.pk}/"
         )
-
         self.assertEqual(
             response.status_code,
             status.HTTP_204_NO_CONTENT,
@@ -379,13 +291,11 @@ class EmployeeAPITests(APITestCase):
 
     def test_unauthenticated_user_cannot_update_employee(self):
         self.client.force_authenticate(user=None)
-
         response = self.client.patch(
             f"{self.list_url}{self.employee.pk}/",
             {"last_name": "Unauthorized"},
             format="json",
         )
-
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
@@ -395,11 +305,9 @@ class EmployeeAPITests(APITestCase):
 
     def test_unauthenticated_user_cannot_delete_employee(self):
         self.client.force_authenticate(user=None)
-
         response = self.client.delete(
             f"{self.list_url}{self.employee.pk}/"
         )
-
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
@@ -410,11 +318,9 @@ class EmployeeAPITests(APITestCase):
 
     def test_unauthenticated_user_cannot_deactivate_employee(self):
         self.client.force_authenticate(user=None)
-
         response = self.client.post(
             f"{self.list_url}{self.employee.pk}/deactivate/"
         )
-
         self.assertIn(
             response.status_code,
             [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
@@ -422,10 +328,7 @@ class EmployeeAPITests(APITestCase):
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.status, "Active")
 
-    # ORM and model tests
-
     def test_atomic_transaction_rolls_back_partial_writes(self):
-        # The first write must be rolled back when the second write fails.
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 Employee.objects.create(
@@ -437,8 +340,6 @@ class EmployeeAPITests(APITestCase):
                     date_of_joining=date(2026, 3, 1),
                     department=self.department,
                 )
-
-                # This duplicate email violates the database unique constraint.
                 Employee.objects.create(
                     employee_code="ROLLBACK002",
                     first_name="Duplicate",
@@ -450,14 +351,10 @@ class EmployeeAPITests(APITestCase):
                 )
 
         self.assertFalse(
-            Employee.objects.filter(
-                employee_code="ROLLBACK001"
-            ).exists()
+            Employee.objects.filter(employee_code="ROLLBACK001").exists()
         )
         self.assertFalse(
-            Employee.objects.filter(
-                employee_code="ROLLBACK002"
-            ).exists()
+            Employee.objects.filter(employee_code="ROLLBACK002").exists()
         )
 
     def test_department_name_must_be_unique(self):
@@ -471,14 +368,12 @@ class EmployeeAPITests(APITestCase):
     def test_department_cannot_be_deleted_with_employees(self):
         with self.assertRaises(ProtectedError):
             self.department.delete()
-
         self.assertTrue(
             Department.objects.filter(pk=self.department.pk).exists()
         )
 
     def test_department_employees_reverse_relationship(self):
         employees = self.department.employees.all()
-
         self.assertEqual(employees.count(), 1)
         self.assertEqual(employees.first(), self.employee)
 
@@ -492,10 +387,7 @@ class EmployeeAPITests(APITestCase):
             date_of_joining=date(2026, 2, 1),
             department=self.department,
         )
-
         self.assertEqual(
-            Employee.objects.filter(
-                department=self.department
-            ).count(),
+            Employee.objects.filter(department=self.department).count(),
             2,
         )
