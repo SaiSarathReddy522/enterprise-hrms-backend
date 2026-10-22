@@ -1,5 +1,6 @@
-﻿from django.shortcuts import render, get_object_or_404
-from .permissions import EmployeeRolePermission
+﻿
+from django.shortcuts import render, get_object_or_404
+from django.db import OperationalError
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -48,20 +49,31 @@ class EmployeeListCreateAPIView(APIView):
             request.query_params.get("active_only", "").lower() == "true"
         )
 
-        employees = services.search_employees(
-            query=query,
-            active_only=active_only,
-        )
+        try:
+            employees = services.search_employees(
+                query=query,
+                active_only=active_only,
+            )
 
-        paginator = EmployeePagination()
-        page = paginator.paginate_queryset(
-            employees,
-            request,
-            view=self,
-        )
+            paginator = EmployeePagination()
+            page = paginator.paginate_queryset(
+                employees,
+                request,
+                view=self,
+            )
 
-        serializer = EmployeeSerializer(page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+            serializer = EmployeeSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        except OperationalError:
+            return Response(
+                {
+                    "detail": (
+                        "Database temporarily unavailable. Please retry."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
     def post(self, request):
         serializer = EmployeeSerializer(data=request.data)

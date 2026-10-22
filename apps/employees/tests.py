@@ -1,9 +1,10 @@
 
 from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.db.models.deletion import ProtectedError
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -390,4 +391,49 @@ class EmployeeAPITests(APITestCase):
         self.assertEqual(
             Employee.objects.filter(department=self.department).count(),
             2,
+        )
+
+    def test_create_database_integrity_failure_returns_400(self):
+        payload = {
+            "employee_code": "FAIL001",
+            "first_name": "Database",
+            "last_name": "Failure",
+            "email": "database.failure@example.com",
+            "phone": "9876543216",
+            "date_of_joining": "2026-03-01",
+            "department": self.department.pk,
+        }
+
+        with patch(
+            "apps.employees.services.Employee.objects.create",
+            side_effect=IntegrityError("Simulated constraint failure"),
+        ):
+            response = self.client.post(
+                self.list_url,
+                payload,
+                format="json",
+            )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertFalse(
+            Employee.objects.filter(employee_code="FAIL001").exists()
+        )
+
+    def test_employee_list_database_failure_returns_503(self):
+        with patch(
+            "apps.employees.views.services.search_employees",
+            side_effect=OperationalError("Simulated database outage"),
+        ):
+            response = self.client.get(self.list_url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+        self.assertEqual(
+            response.data["detail"],
+            "Database temporarily unavailable. Please retry.",
         )
