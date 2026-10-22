@@ -41,6 +41,62 @@ class EmployeeAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_employee_list_query_count_stays_bounded(self):
+        # Add employees sharing the same department.
+        for index in range(2, 7):
+            Employee.objects.create(
+                employee_code=f"QUERY{index:03d}",
+                first_name=f"Test{index}",
+                last_name="Employee",
+                email=f"query{index}@example.com",
+                phone=f"98765432{index:02d}",
+                date_of_joining=date(2026, 2, 1),
+                department=self.department,
+            )
+
+        # Pagination performs a count query and a result query.
+        # select_related("department") avoids a separate query per employee.
+        with self.assertNumQueries(2):
+            response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 6)
+        self.assertEqual(len(response.data["results"]), 6)
+
+    def test_employee_list_enforces_maximum_page_size(self):
+        # Add 101 employees to the employee already created in setUp().
+        for index in range(2, 103):
+            Employee.objects.create(
+                employee_code=f"PAGE{index:03d}",
+                first_name=f"Page{index}",
+                last_name="Employee",
+                email=f"page{index}@example.com",
+                phone=f"98765{index:05d}",
+                date_of_joining=date(2026, 2, 1),
+                department=self.department,
+            )
+
+        response = self.client.get(
+            self.list_url,
+            {"page_size": 1000},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 102)
+        self.assertEqual(len(response.data["results"]), 100)
+        self.assertIsNotNone(response.data["next"])
+
+    def test_employee_list_invalid_page_returns_404(self):
+        response = self.client.get(
+            self.list_url,
+            {"page": 9999},
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
     def test_retrieve_existing_employee_returns_200(self):
         response = self.client.get(
             f"{self.list_url}{self.employee.pk}/"
@@ -367,6 +423,42 @@ class EmployeeAPITests(APITestCase):
         self.assertEqual(self.employee.status, "Active")
 
     # ORM and model tests
+
+    def test_atomic_transaction_rolls_back_partial_writes(self):
+        # The first write must be rolled back when the second write fails.
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Employee.objects.create(
+                    employee_code="ROLLBACK001",
+                    first_name="Rollback",
+                    last_name="Test",
+                    email="rollback@example.com",
+                    phone="9876543212",
+                    date_of_joining=date(2026, 3, 1),
+                    department=self.department,
+                )
+
+                # This duplicate email violates the database unique constraint.
+                Employee.objects.create(
+                    employee_code="ROLLBACK002",
+                    first_name="Duplicate",
+                    last_name="Email",
+                    email=self.employee.email,
+                    phone="9876543213",
+                    date_of_joining=date(2026, 3, 1),
+                    department=self.department,
+                )
+
+        self.assertFalse(
+            Employee.objects.filter(
+                employee_code="ROLLBACK001"
+            ).exists()
+        )
+        self.assertFalse(
+            Employee.objects.filter(
+                employee_code="ROLLBACK002"
+            ).exists()
+        )
 
     def test_department_name_must_be_unique(self):
         with self.assertRaises(IntegrityError):
