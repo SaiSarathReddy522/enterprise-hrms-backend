@@ -1,4 +1,4 @@
-# HRMS API Design
+﻿# HRMS API Design
 
 ## 1. Purpose
 
@@ -294,3 +294,11 @@ Department information is exposed through the employee serializer. Separate depa
 
 Review permissions, authentication behavior, and API responses against the running application whenever the implementation changes.
 
+## 15. Automated Testing and Verification
+
+### Run the test suite
+
+Run the complete Django test suite:
+
+```powershell
+python manage.py test
