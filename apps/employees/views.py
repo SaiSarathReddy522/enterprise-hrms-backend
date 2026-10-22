@@ -1,5 +1,4 @@
-﻿
-from django.shortcuts import render, get_object_or_404
+﻿from django.shortcuts import render, get_object_or_404
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -18,7 +17,7 @@ def employee_home(request):
 
 
 def employee_list(request):
-    employees = Employee.objects.all()
+    employees = Employee.objects.select_related("department").all()
     return render(
         request,
         "employees/list.html",
@@ -27,7 +26,10 @@ def employee_list(request):
 
 
 def employee_detail(request, employee_id):
-    employee = get_object_or_404(Employee, id=employee_id)
+    employee = get_object_or_404(
+        Employee.objects.select_related("department"),
+        id=employee_id,
+    )
     return render(
         request,
         "employees/detail.html",
@@ -49,12 +51,16 @@ class EmployeeListCreateAPIView(APIView):
             query=query,
             active_only=active_only,
         )
+
         paginator = EmployeePagination()
-        page = paginator.paginate_queryset(employees, request, view=self)
+        page = paginator.paginate_queryset(
+            employees,
+            request,
+            view=self,
+        )
+
         serializer = EmployeeSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
         serializer = EmployeeSerializer(data=request.data)
@@ -77,7 +83,10 @@ class EmployeeListCreateAPIView(APIView):
 class EmployeeDetailAPIView(APIView):
 
     def get_object(self, pk):
-        return get_object_or_404(Employee, pk=pk)
+        return get_object_or_404(
+            Employee.objects.select_related("department"),
+            pk=pk,
+        )
 
     def get(self, request, pk):
         employee = self.get_object(pk)
@@ -131,8 +140,12 @@ class EmployeeDetailAPIView(APIView):
 class EmployeeDeactivateAPIView(APIView):
 
     def post(self, request, pk):
-        employee = get_object_or_404(Employee, pk=pk)
+        employee = get_object_or_404(
+            Employee.objects.select_related("department"),
+            pk=pk,
+        )
         employee = services.deactivate_employee(employee)
+
         return Response(
             EmployeeSerializer(employee).data,
             status=status.HTTP_200_OK,
