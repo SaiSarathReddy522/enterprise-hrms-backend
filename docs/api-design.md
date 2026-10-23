@@ -302,3 +302,66 @@ Run the complete Django test suite:
 
 ```powershell
 python manage.py test
+
+Make sure the closing triple backticks are present immediately after `python manage.py test`.
+
+Your file should have this structure:
+
+1. `## 15. Automated Testing and Verification`
+2. `### Run the test suite` with its properly closed code block.
+3. `### Employee Role-Based Access`
+4. `### Permission Design Decisions`
+5. `### Verification Steps`
+6. `### Known Limitations`
+
+Keep the role-permission content you already added; just correct the code-block boundary and preserve the existing sections.
+
+## Step 2 — Verify the Markdown
+
+Save the file, then run:
+
+```powershell
+Get-Content .\docs\api-design.md | Select-Object -Last 55
+git diff --check
+git diff -- docs/api-design.md
+### Employee Role-Based Access
+
+The Employee API uses authentication and role-based permissions to restrict access to employee records.
+
+| Role | Access |
+|---|---|
+| Admin | Full access to permitted Employee API operations |
+| HR | Can create, read, and update employee records; cannot delete records |
+| Manager | Read-only access to employee records |
+| Employee | Can access their own linked employee record only |
+
+Permission checks are applied at the API view level. Object-level permission checks are also performed for individual employee records, including detail and deactivate operations.
+
+Employee list results are filtered by role. Regular Employees receive only their own linked employee record, while Admin, HR, and Manager roles can access the employee list according to their permissions.
+
+### Permission Design Decisions
+
+- Authentication is required by default through Django REST Framework.
+- Role permissions are implemented using a custom permission class.
+- Object-level checks help prevent users from accessing another employee's record.
+- The employee list is filtered at the queryset level to restrict which records are returned.
+- Permission behavior is verified through automated API tests, including forbidden operations and access to another employee's record.
+
+### Verification Steps
+
+Activate the project's virtual environment and run these commands from the repository root:
+
+```powershell
+python manage.py check
+python manage.py test
+git diff --check
+```
+
+Review the test output and Git changes before committing. The test suite should pass before changes are pushed.
+
+### Known Limitations
+
+- This document covers the Employee REST API; separate Department REST endpoints are not registered in the current project-level API URL configuration.
+- Role permissions depend on the application's configured Django groups and user-to-employee relationships.
+- Session and Basic authentication are configured for the current project. Production authentication and deployment security require separate review.
+- Permission behavior should be retested whenever role rules, API views, or employee relationships change.
