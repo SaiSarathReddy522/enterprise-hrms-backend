@@ -497,7 +497,7 @@ class EmployeeAPITests(APITestCase):
         self.employee.user = self.user
         self.employee.save(update_fields=["user"])
 
-        other_employee = Employee.objects.create(
+        Employee.objects.create(
             employee_code="OTHER001",
             first_name="Other",
             last_name="Employee",
@@ -534,5 +534,61 @@ class EmployeeAPITests(APITestCase):
         response = self.client.get(
             f"{self.list_url}{other_employee.pk}/"
         )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # Additional role-permission tests
+
+    def test_admin_can_delete_deactivated_employee(self):
+        self.employee.status = "Inactive"
+        self.employee.save(update_fields=["status"])
+
+        response = self.client.delete(
+            f"{self.list_url}{self.employee.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            Employee.objects.filter(pk=self.employee.pk).exists()
+        )
+
+    def test_manager_cannot_update_employee(self):
+        self.assign_role("Manager")
+
+        response = self.client.patch(
+            f"{self.list_url}{self.employee.pk}/",
+            {"first_name": "Changed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_manager_cannot_delete_employee(self):
+        self.assign_role("Manager")
+
+        response = self.client.delete(
+            f"{self.list_url}{self.employee.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(
+            Employee.objects.filter(pk=self.employee.pk).exists()
+        )
+
+    def test_employee_cannot_create_employee(self):
+        self.assign_role("Employee")
+
+        response = self.client.post(
+            self.list_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_without_role_is_denied(self):
+        self.user.groups.clear()
+
+        response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
