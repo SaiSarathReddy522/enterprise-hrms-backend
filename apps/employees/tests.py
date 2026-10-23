@@ -59,7 +59,7 @@ class EmployeeAPITests(APITestCase):
                 department=self.department,
             )
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -437,3 +437,102 @@ class EmployeeAPITests(APITestCase):
             response.data["detail"],
             "Database temporarily unavailable. Please retry.",
         )
+
+    def assign_role(self, role_name):
+        self.user.groups.clear()
+        group, _ = Group.objects.get_or_create(name=role_name)
+        self.user.groups.add(group)
+        self.client.force_authenticate(user=self.user)
+
+    def test_hr_can_create_employee(self):
+        self.assign_role("HR")
+        payload = {
+            "employee_code": "HR001",
+            "first_name": "HR",
+            "last_name": "Tester",
+            "email": "hr.tester@example.com",
+            "phone": "9876543211",
+            "date_of_joining": "2026-03-01",
+            "department": self.department.pk,
+        }
+
+        response = self.client.post(
+            self.list_url,
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_hr_cannot_delete_employee(self):
+        self.assign_role("HR")
+
+        response = self.client.delete(
+            f"{self.list_url}{self.employee.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(
+            Employee.objects.filter(pk=self.employee.pk).exists()
+        )
+
+    def test_manager_can_read_but_cannot_create(self):
+        self.assign_role("Manager")
+
+        read_response = self.client.get(self.list_url)
+        create_response = self.client.post(
+            self.list_url,
+            {},
+            format="json",
+        )
+
+        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            create_response.status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_employee_can_only_list_own_record(self):
+        self.assign_role("Employee")
+        self.employee.user = self.user
+        self.employee.save(update_fields=["user"])
+
+        other_employee = Employee.objects.create(
+            employee_code="OTHER001",
+            first_name="Other",
+            last_name="Employee",
+            email="other.employee@example.com",
+            phone="9876543212",
+            date_of_joining=date(2026, 3, 1),
+            department=self.department,
+        )
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(
+            response.data["results"][0]["employee_code"],
+            self.employee.employee_code,
+        )
+
+    def test_employee_cannot_retrieve_another_employee(self):
+        self.assign_role("Employee")
+        self.employee.user = self.user
+        self.employee.save(update_fields=["user"])
+
+        other_employee = Employee.objects.create(
+            employee_code="OTHER002",
+            first_name="Other",
+            last_name="Employee",
+            email="other2.employee@example.com",
+            phone="9876543213",
+            date_of_joining=date(2026, 3, 1),
+            department=self.department,
+        )
+
+        response = self.client.get(
+            f"{self.list_url}{other_employee.pk}/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

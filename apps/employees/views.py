@@ -9,6 +9,7 @@ from rest_framework import status
 from .models import Employee
 from .serializers import EmployeeSerializer
 from .pagination import EmployeePagination
+from .permissions import EmployeeRolePermission
 from . import services
 
 
@@ -42,6 +43,7 @@ def employee_detail(request, employee_id):
 # Employee API: list, search, create
 
 class EmployeeListCreateAPIView(APIView):
+    permission_classes = [EmployeeRolePermission]
 
     def get(self, request):
         query = request.query_params.get("search", "")
@@ -54,6 +56,23 @@ class EmployeeListCreateAPIView(APIView):
                 query=query,
                 active_only=active_only,
             )
+
+            # Reuse roles cached by the permission class when available.
+            roles = getattr(
+                request._request,
+                "_employee_role_names",
+                None,
+            )
+
+            if roles is None:
+                roles = EmployeeRolePermission().get_roles(request)
+
+            # Employees can view only their own linked employee record.
+            if (
+                "Employee" in roles
+                and not roles.intersection({"Admin", "HR", "Manager"})
+            ):
+                employees = employees.filter(user=request.user)
 
             paginator = EmployeePagination()
             page = paginator.paginate_queryset(
@@ -94,12 +113,15 @@ class EmployeeListCreateAPIView(APIView):
 # Employee API: retrieve, update, delete
 
 class EmployeeDetailAPIView(APIView):
+    permission_classes = [EmployeeRolePermission]
 
     def get_object(self, pk):
-        return get_object_or_404(
+        employee = get_object_or_404(
             Employee.objects.select_related("department"),
             pk=pk,
         )
+        self.check_object_permissions(self.request, employee)
+        return employee
 
     def get(self, request, pk):
         employee = self.get_object(pk)
@@ -151,12 +173,15 @@ class EmployeeDetailAPIView(APIView):
 # Employee API: deactivate
 
 class EmployeeDeactivateAPIView(APIView):
+    permission_classes = [EmployeeRolePermission]
 
     def post(self, request, pk):
         employee = get_object_or_404(
             Employee.objects.select_related("department"),
             pk=pk,
         )
+        self.check_object_permissions(request, employee)
+
         employee = services.deactivate_employee(employee)
 
         return Response(
