@@ -1,4 +1,6 @@
 ﻿
+import logging
+
 from django.shortcuts import render, get_object_or_404
 from django.db import OperationalError
 
@@ -11,6 +13,9 @@ from .serializers import EmployeeSerializer
 from .pagination import EmployeePagination
 from .permissions import EmployeeRolePermission
 from . import services
+
+
+logger = logging.getLogger(__name__)
 
 
 # HTML Views
@@ -85,6 +90,8 @@ class EmployeeListCreateAPIView(APIView):
             return paginator.get_paginated_response(serializer.data)
 
         except OperationalError:
+            logger.exception("Database error while listing employees")
+
             return Response(
                 {
                     "detail": (
